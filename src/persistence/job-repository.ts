@@ -5,6 +5,7 @@ import { AppError } from "../domain/errors.js";
 
 interface JobRow {
   id: string;
+  user_id: string | null;
   input_path: string;
   output_path: string;
   input_checksum: string;
@@ -31,6 +32,7 @@ interface JobRow {
 function rowToJob(row: JobRow): Job {
   return {
     id: row.id,
+    userId: row.user_id,
     inputPath: row.input_path,
     outputPath: row.output_path,
     inputChecksum: row.input_checksum,
@@ -57,6 +59,7 @@ function rowToJob(row: JobRow): Job {
 
 export interface CreateJobInput {
   id: string;
+  userId?: string | undefined;
   inputPath: string;
   outputPath: string;
   inputChecksum: string;
@@ -77,16 +80,16 @@ export class JobRepository {
     this.db
       .prepare(
         `INSERT INTO jobs (
-          id, input_path, output_path, input_checksum, source_language, target_language,
+          id, user_id, input_path, output_path, input_checksum, source_language, target_language,
           display_order, granularity, provider, model, status, total_segments,
           completed_segments, failed_segments, accumulated_input_tokens,
           accumulated_output_tokens, estimated_cost, created_at, updated_at,
           last_run_at, next_run_at, error_message
-        ) VALUES (@id, @inputPath, @outputPath, @inputChecksum, @sourceLanguage, @targetLanguage,
+        ) VALUES (@id, @userId, @inputPath, @outputPath, @inputChecksum, @sourceLanguage, @targetLanguage,
           @displayOrder, @granularity, @provider, @model, 'CREATED', @totalSegments,
           0, 0, 0, 0, NULL, @now, @now, NULL, NULL, NULL)`,
       )
-      .run({ ...input, now });
+      .run({ userId: null, ...input, now });
     return this.getOrThrow(input.id);
   }
 

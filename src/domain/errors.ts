@@ -80,3 +80,15 @@ export class OutputValidationError extends AppError {
     super(message, "OUTPUT_VALIDATION");
   }
 }
+
+export class PricingNotConfiguredError extends AppError {
+  constructor(message: string) {
+    super(message, "PRICING_NOT_CONFIGURED");
+  }
+}
+
+export class PaymentRequiredError extends AppError {
+  constructor(message: string) {
+    super(message, "PAYMENT_REQUIRED");
+  }
+}

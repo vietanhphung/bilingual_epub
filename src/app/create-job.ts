@@ -15,6 +15,7 @@ export interface CreateJobOptions {
   config: BookConfig;
   provider: string;
   model: string;
+  userId?: string | undefined;
 }
 
 /**
@@ -39,6 +40,7 @@ export async function createJob(
 
   const job = jobRepo.create({
     id: randomUUID(),
+    userId: options.userId,
     inputPath: options.inputPath,
     outputPath: options.outputPath,
     inputChecksum: parsed.inputChecksum,

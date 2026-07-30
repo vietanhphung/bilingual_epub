@@ -16,6 +16,7 @@ export type JobStatus =
 
 export interface Job {
   id: string;
+  userId: string | null;
   inputPath: string;
   outputPath: string;
   inputChecksum: string;

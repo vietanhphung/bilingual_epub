@@ -80,6 +80,25 @@ export const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
+
+  // --- Web server (ui/ + src/server) ---
+  PORT: nonNegativeIntFromEnv(3001),
+  WEB_APP_ORIGIN: z.string().min(1).default("http://localhost:5173"),
+  JWT_SECRET: z.string().min(1).default("dev-only-insecure-secret-change-me"),
+  UPLOAD_DIR: z.string().min(1).default("./data/uploads"),
+  UPLOAD_MAX_BYTES: nonNegativeIntFromEnv(80_000_000),
+
+  // --- Billing (Stripe) ---
+  // Test-mode keys from your own Stripe account (dashboard.stripe.com/test/apikeys).
+  // Unset in mock/dev use — routes that need them fail fast with a clear error.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+
+  // Pay-per-translation pricing: price = max(minimum, providerCost * markup).
+  // Markup covers Stripe's ~2.9%+$0.30 fee, token-estimate variance, and margin.
+  PLATFORM_MARKUP_MULTIPLIER: z.coerce.number().positive().default(3),
+  PLATFORM_MINIMUM_CHARGE_USD_CENTS: nonNegativeIntFromEnv(50),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

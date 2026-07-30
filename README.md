@@ -202,6 +202,21 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full pipeline
 diagram, component map, job state machine, run sequence, budget
 enforcement table, and the design decisions behind them.
 
+## Web app (optional)
+
+A browser frontend and multi-user HTTP API sit alongside the CLI —
+`src/server` (Express) wraps the same job pipeline the CLI uses, and `ui/`
+(React + Vite) is a drag-and-drop client for it. Accounts get one free
+translation; every one after that is priced from the book's estimated
+token count and paid for via Stripe Checkout before the job runs. See
+[`docs/WEB_APP.md`](docs/WEB_APP.md) for setup, the pricing/entitlement
+model, and how to configure Stripe.
+
+```bash
+npm run server   # API on :3001 (needs JWT_SECRET set in .env)
+npm run ui       # React app on :5173, proxies /api to :3001
+```
+
 ## Testing
 
 ```bash
@@ -244,8 +259,9 @@ RUN_LIVE_LLM_TESTS=true ANTHROPIC_API_KEY=sk-... npm test
 ## Version 1 non-goals
 
 PDF/MOBI input or conversion, DRM removal, sentence/page-level alignment,
-languages beyond English/French, a translation-editing UI, a browser
-frontend, a cloud job queue, multi-user accounts, in-EPUB JavaScript
-language toggles, OCR, image translation, audio generation, and automatic
-publication/distribution. See `bilingual_epub_agent_build_plan.md` for the
-full build plan this implementation follows.
+languages beyond English/French, a translation-editing UI, a cloud job
+queue, in-EPUB JavaScript language toggles, OCR, image translation, audio
+generation, and automatic publication/distribution. (A browser frontend
+and multi-user accounts, originally listed here too, now exist — see
+"Web app" above.) See `bilingual_epub_agent_build_plan.md` for the full
+build plan the core pipeline implementation follows.
