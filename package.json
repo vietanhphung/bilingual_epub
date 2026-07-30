@@ -1,0 +1,50 @@
+{
+  "name": "bilingual-epub-agent",
+  "version": "0.1.0",
+  "description": "Local bilingual EPUB generation agent (English <-> French)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "bilingual-epub": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "chmod +x dist/cli/index.js",
+    "prepare": "npm run build",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "better-sqlite3": "^11.7.0",
+    "cheerio": "^1.0.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "pino": "^9.5.0",
+    "pino-pretty": "^13.0.0",
+    "yazl": "^3.3.1",
+    "yauzl": "^3.2.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.5",
+    "@types/node-cron": "^3.0.11",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^2.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
