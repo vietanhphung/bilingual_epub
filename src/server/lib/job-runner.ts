@@ -38,7 +38,16 @@ export async function runJobToCompletion(db: AppDatabase, jobId: string, env: Ap
     });
 
     try {
-      await runJob(db, jobId, strategy, env);
+      // A paying (or free-grant) customer's job must not hard-fail over a
+      // handful of proper nouns the translation validator can't distinguish
+      // from a genuine model error (see translation-validator.ts) — give
+      // every FAILED segment one automatic retry, then render with source
+      // text standing in for whatever still fails (same as the CLI's
+      // `--allow-untranslated` flag) instead of discarding the whole book.
+      await runJob(db, jobId, strategy, env, {
+        allowUntranslated: true,
+        retryFailedSegmentsOnce: true,
+      });
     } catch (err) {
       logger.error({ err, jobId }, "background job run failed");
       return;

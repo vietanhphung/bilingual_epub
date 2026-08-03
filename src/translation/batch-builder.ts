@@ -4,9 +4,22 @@ export interface BatchableSegment {
   estimatedTokens: number;
 }
 
-/** Rough, provider-independent heuristic: ~4 characters per token. */
-export function estimateSegmentTokens(text: string): number {
-  return Math.max(1, Math.ceil(text.length / 4));
+/**
+ * Rough, provider-independent heuristic: ~4 characters per token. When an
+ * id is passed, also accounts for that id and its JSON envelope
+ * (`{"id": "...", "text": "..."}`, pretty-printed — see
+ * prompt.ts:buildUserMessage), since that's what's actually sent to the
+ * provider per segment. Ignoring it undercounts badly for books whose
+ * segment ids are chapter-path-prefixed and long (see
+ * paragraph-segmenter.ts:computeSegmentId) relative to short paragraphs —
+ * a batch of many brief lines pays that fixed envelope cost far more
+ * often relative to its own text.
+ */
+const JSON_ENVELOPE_OVERHEAD_CHARS = 50;
+
+export function estimateSegmentTokens(text: string, id = ""): number {
+  const overhead = id ? id.length + JSON_ENVELOPE_OVERHEAD_CHARS : 0;
+  return Math.max(1, Math.ceil((text.length + overhead) / 4));
 }
 
 /**

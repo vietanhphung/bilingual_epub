@@ -20,7 +20,7 @@ export async function storeUpload(
 ): Promise<Upload> {
   const inspection = await inspectBook(params.buffer);
   const sourceTokenEstimate = inspection.segments.reduce(
-    (sum, s) => sum + estimateSegmentTokens(s.sourceText),
+    (sum, s) => sum + estimateSegmentTokens(s.sourceText, s.id),
     0,
   );
   const estimatedOutputTokens = Math.ceil(sourceTokenEstimate * 1.2);

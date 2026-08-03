@@ -62,7 +62,9 @@ describe("ClaudeTranslationStrategy", () => {
     expect(client.messages.create).toHaveBeenCalledTimes(1);
     const callArgs = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(callArgs.tool_choice).toEqual({ type: "tool", name: "submit_translations" });
-    expect(callArgs.temperature).toBe(0);
+    // temperature is intentionally omitted: newer models (e.g. claude-sonnet-5)
+    // reject an explicit override with "temperature is deprecated for this model".
+    expect(callArgs.temperature).toBeUndefined();
   });
 
   it("throws TranslationValidationError when no tool_use block is returned", async () => {

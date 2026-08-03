@@ -7,6 +7,7 @@ import {
   type SegmentTranslationOutcome,
 } from "../epub/bilingual-renderer.js";
 import { writeEpub } from "../epub/epub-writer.js";
+import { sanitizeEpubEntryPaths } from "../epub/sanitize-paths.js";
 import { validateTranslationBatch } from "../translation/translation-validator.js";
 import type { BookConfig } from "../config/schema.js";
 import type {
@@ -99,7 +100,7 @@ export async function translateBookWithStrategy(
     targetLanguage: config.targetLanguage,
     displayOrder: config.displayOrder,
   });
-  const outputBuffer = await writeEpub(entries);
+  const outputBuffer = await writeEpub(sanitizeEpubEntryPaths(entries));
 
   return {
     outputBuffer,

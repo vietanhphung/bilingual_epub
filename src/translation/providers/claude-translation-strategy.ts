@@ -155,7 +155,6 @@ export class ClaudeTranslationStrategy implements TranslationStrategy {
           return await this.client.messages.create({
             model: this.model,
             max_tokens: this.maxOutputTokens,
-            temperature: 0,
             system,
             messages: [{ role: "user", content: userMessage }],
             tools: [SUBMIT_TRANSLATIONS_TOOL_SCHEMA],

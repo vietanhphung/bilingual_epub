@@ -37,7 +37,7 @@ export async function estimateBook(
   const tokenized = inspection.segments.map((s) => ({
     id: s.id,
     chapterPath: s.chapterPath,
-    estimatedTokens: estimateSegmentTokens(s.sourceText),
+    estimatedTokens: estimateSegmentTokens(s.sourceText, s.id),
   }));
 
   const sourceTokenEstimate = tokenized.reduce((sum, t) => sum + t.estimatedTokens, 0);

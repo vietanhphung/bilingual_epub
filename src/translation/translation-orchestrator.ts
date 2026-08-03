@@ -146,14 +146,23 @@ export async function translatePendingSegments(
     remaining.map((s) => ({
       id: s.id,
       chapterPath: s.chapterPath,
-      estimatedTokens: estimateSegmentTokens(s.sourceText),
+      estimatedTokens: estimateSegmentTokens(s.sourceText, s.id),
     })),
     options.budget.maxSourceTokensPerRequest,
     options.budget.tokenSafetyMarginPercent,
   );
   const segmentsById = new Map(remaining.map((s) => [s.id, s]));
 
-  for (const batchIds of batches) {
+  // A mutable queue, not a fixed array: buildBatches's packing estimate is a
+  // local heuristic (chars/4) and can still undercount the provider's real
+  // tokenizer — e.g. accented text tokenizes less efficiently than plain
+  // ASCII. Rather than pausing the whole job whenever that happens, a batch
+  // the provider says is genuinely too large gets split and its halves
+  // re-queued, so one bad estimate costs a couple of retries, not a stall.
+  const batchQueue: string[][] = [...batches];
+
+  while (batchQueue.length > 0) {
+    const batchIds = batchQueue.shift()!;
     const batchSegments = batchIds.map((id) => segmentsById.get(id)!);
     const request: TranslationBatchRequest = {
       segments: batchSegments.map((s) => ({
@@ -188,6 +197,27 @@ export async function translatePendingSegments(
     );
 
     if (!decision.allowed) {
+      if (decision.scope === "REQUEST" && batchIds.length > 1) {
+        const mid = Math.ceil(batchIds.length / 2);
+        batchQueue.unshift(batchIds.slice(0, mid), batchIds.slice(mid));
+        continue;
+      }
+      if (decision.scope === "REQUEST" && batchIds.length === 1) {
+        // A single paragraph the provider's real tokenizer says won't fit
+        // in one request at all — not an estimate error to retry past, a
+        // genuinely oversized paragraph (mirrors estimate's "unsafe
+        // paragraphs" concept). Fail just this one and keep going.
+        const persistOversized = db.transaction(() => {
+          segmentRepo.markFailed(
+            job.id,
+            batchIds[0]!,
+            `Paragraph too large for a single request even alone: ${decision.reason}`,
+          );
+          failedCount += 1;
+        });
+        persistOversized();
+        continue;
+      }
       stopReason = "BUDGET";
       stopMessage = `${decision.scope}: ${decision.reason}`;
       break;

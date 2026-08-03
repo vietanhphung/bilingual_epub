@@ -6,6 +6,7 @@ import {
   type SegmentTranslationOutcome,
 } from "../epub/bilingual-renderer.js";
 import { writeEpub } from "../epub/epub-writer.js";
+import { sanitizeEpubEntryPaths } from "../epub/sanitize-paths.js";
 import { validateEpub } from "../epub/epub-validator.js";
 import { JobRepository } from "../persistence/job-repository.js";
 import { SegmentRepository } from "../persistence/segment-repository.js";
@@ -25,6 +26,8 @@ import type { ValidationIssue } from "../epub/epub-validator.js";
 export interface RunJobOptions {
   /** Render with source text standing in for any FAILED segments instead of failing the job. */
   allowUntranslated?: boolean;
+  /** Give segments that ended up FAILED one automatic retry before finalizing the job. */
+  retryFailedSegmentsOnce?: boolean;
 }
 
 export interface RunJobResult {
@@ -79,39 +82,60 @@ export async function runJob(
   }
 
   try {
-    const runResult = await translatePendingSegments(db, job, strategy, {
-      budget: budgetConfigFromEnv(env),
-      timezone: env.SCHEDULE_TIMEZONE,
-      requestDelayMs: env.REQUEST_DELAY_MS,
-      pricing: {
-        inputPricePerMillionTokensUsd: env.MODEL_INPUT_PRICE_PER_MILLION_TOKENS_USD,
-        outputPricePerMillionTokensUsd: env.MODEL_OUTPUT_PRICE_PER_MILLION_TOKENS_USD,
-      },
-    });
+    let runResult: OrchestratorRunResult;
+    let counts: ReturnType<typeof segmentRepo.countByStatus>;
+    let retriedFailedSegmentsOnce = false;
 
-    const counts = segmentRepo.countByStatus(jobId);
-    job = jobRepo.updateProgress(jobId, {
-      completedSegments: counts.TRANSLATED,
-      failedSegments: counts.FAILED,
-      accumulatedInputTokens: job.accumulatedInputTokens + runResult.inputTokens,
-      accumulatedOutputTokens: job.accumulatedOutputTokens + runResult.outputTokens,
-    });
-    jobRepo.touchRunTimestamps(jobId, new Date().toISOString(), null);
-    job = jobRepo.getOrThrow(jobId);
-
-    if (runResult.stopReason === "AUTH_ERROR") {
-      job = jobRepo.transition(jobId, "FAILED", {
-        errorMessage: runResult.stopMessage ?? "Authentication error",
+    // Bounded to two passes: a segment FAILED for a structural reason (e.g. a
+    // proper noun the validator can't distinguish from a botched
+    // translation — see translation-validator.ts) will fail identically on
+    // retry, so this is a single extra attempt for the segments that failed
+    // for a transient reason, not a loop.
+    for (;;) {
+      runResult = await translatePendingSegments(db, job, strategy, {
+        budget: budgetConfigFromEnv(env),
+        timezone: env.SCHEDULE_TIMEZONE,
+        requestDelayMs: env.REQUEST_DELAY_MS,
+        pricing: {
+          inputPricePerMillionTokensUsd: env.MODEL_INPUT_PRICE_PER_MILLION_TOKENS_USD,
+          outputPricePerMillionTokensUsd: env.MODEL_OUTPUT_PRICE_PER_MILLION_TOKENS_USD,
+        },
       });
-      return { job, orchestratorRun: runResult };
-    }
 
-    if (counts.PENDING > 0) {
-      const pauseStatus = runResult.stopReason === "RATE_LIMIT" ? "PAUSED_RATE_LIMIT" : "PAUSED_BUDGET";
-      job = jobRepo.transition(jobId, pauseStatus, {
-        errorMessage: runResult.stopMessage ?? null,
+      counts = segmentRepo.countByStatus(jobId);
+      job = jobRepo.updateProgress(jobId, {
+        completedSegments: counts.TRANSLATED,
+        failedSegments: counts.FAILED,
+        accumulatedInputTokens: job.accumulatedInputTokens + runResult.inputTokens,
+        accumulatedOutputTokens: job.accumulatedOutputTokens + runResult.outputTokens,
       });
-      return { job, orchestratorRun: runResult };
+      jobRepo.touchRunTimestamps(jobId, new Date().toISOString(), null);
+      job = jobRepo.getOrThrow(jobId);
+
+      if (runResult.stopReason === "AUTH_ERROR") {
+        job = jobRepo.transition(jobId, "FAILED", {
+          errorMessage: runResult.stopMessage ?? "Authentication error",
+        });
+        return { job, orchestratorRun: runResult };
+      }
+
+      if (counts.PENDING > 0) {
+        const pauseStatus = runResult.stopReason === "RATE_LIMIT" ? "PAUSED_RATE_LIMIT" : "PAUSED_BUDGET";
+        job = jobRepo.transition(jobId, pauseStatus, {
+          errorMessage: runResult.stopMessage ?? null,
+        });
+        return { job, orchestratorRun: runResult };
+      }
+
+      if (counts.FAILED > 0 && options.retryFailedSegmentsOnce && !retriedFailedSegmentsOnce) {
+        retriedFailedSegmentsOnce = true;
+        for (const segment of segmentRepo.listByJobAndStatus(jobId, "FAILED")) {
+          segmentRepo.resetToPending(jobId, segment.id);
+        }
+        continue;
+      }
+
+      break;
     }
 
     if (counts.FAILED > 0 && !options.allowUntranslated) {
@@ -153,7 +177,7 @@ export async function runJob(
       targetLanguage: job.targetLanguage,
       displayOrder: job.displayOrder,
     });
-    const outputBuffer = await writeEpub(entries);
+    const outputBuffer = await writeEpub(sanitizeEpubEntryPaths(entries));
 
     job = jobRepo.transition(jobId, "VALIDATING");
     const validation = await validateEpub(outputBuffer);
